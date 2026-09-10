@@ -452,77 +452,6 @@
     button.submit[disabled]{ animation: none; }
   }
 
-  .send-error{
-    display: none;
-    background: #FBEAE9;
-    border: 1px solid var(--alert);
-    border-radius: 3px;
-    padding: 12px 14px;
-    font-size: 13.5px;
-    color: var(--alert);
-    margin-top: 14px;
-  }
-
-  .send-error.active{ display: block; }
-
-  .success-screen{
-    display: none;
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 60px 24px 80px;
-    text-align: center;
-  }
-
-  .success-screen.active{ display: block; }
-
-  .success-screen .check{
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 20px;
-    border-radius: 50%;
-    background: var(--ok);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-  }
-
-  .success-screen h2{
-    font-size: 22px;
-    margin-bottom: 10px;
-  }
-
-  .success-screen p{
-    color: var(--ink-soft);
-    font-size: 14.5px;
-    max-width: 44ch;
-    margin: 0 auto 26px;
-  }
-
-  .success-screen .folio-final{
-    display: inline-block;
-    background: #fff;
-    border: 1px solid var(--gold);
-    border-top: 2px dashed var(--gold-light);
-    border-radius: 3px;
-    padding: 18px 26px 16px;
-    margin-bottom: 30px;
-  }
-
-  .success-screen .folio-final .label{
-    font-size: 12px;
-    color: var(--ink-soft);
-    letter-spacing: 0.03em;
-    margin-bottom: 4px;
-  }
-
-  .success-screen .folio-final .value{
-    font-family: 'Source Serif 4', serif;
-    font-weight: 700;
-    font-size: 24px;
-    color: var(--navy-dark);
-  }
 </style>
 </head>
 <body>
@@ -563,7 +492,10 @@
     <input type="hidden" name="_subject" value="Nuevo aviso de inasistencia · Colegio Educar 2000">
     <input type="hidden" name="_template" value="table">
     <input type="hidden" name="_captcha" value="false">
+    <input type="hidden" name="_next" id="next-input" value="">
     <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+    <!-- PDF generado por JS: se adjunta via DataTransfer justo antes del envio -->
+    <input type="file" id="pdf-hidden-input" name="attachment" style="display:none">
 
     <section>
       <h2><span class="step-num">1</span>Datos del estudiante</h2>
@@ -689,7 +621,7 @@
       <div class="field">
         <label for="adjunto">Documento de respaldo (opcional)</label>
         <div class="file-field">
-          <input type="file" id="adjunto" name="Documento adjunto" accept=".pdf,.jpg,.jpeg,.png">
+          <input type="file" id="adjunto" name="attachment2" accept=".pdf,.jpg,.jpeg,.png">
         </div>
       </div>
     </section>
@@ -724,20 +656,9 @@
 
     <button type="submit" class="submit" id="btn-submit">Enviar aviso de inasistencia</button>
     <p class="foot-note">El inspector recibirá esta información por correo y quedará registrada como respaldo de la falta.</p>
-    <div class="send-error" id="send-error">No se pudo enviar el aviso. Verifique su conexión e intente nuevamente.</div>
 
   </form>
 </main>
-
-<div class="success-screen" id="success-screen">
-  <div class="check">✓</div>
-  <h2>Aviso enviado correctamente</h2>
-  <p>El inspector recibió el aviso de inasistencia junto con el PDF generado y el certificado de respaldo (si lo adjuntó).</p>
-  <div class="folio-final">
-    <div class="label">Folio</div>
-    <div class="value" id="folio-final-value"></div>
-  </div>
-</div>
 
 <script>
   const tipoDia = document.getElementById('tipo-dia');
@@ -917,83 +838,66 @@
     return new File([file], nombre, { type: file.type });
   }
 
-  // ---- Envío por AJAX a formsubmit.co ----
+  // ---- Envío CLÁSICO (POST normal con redirección) a formsubmit.co ----
+  // El endpoint /ajax/ de formsubmit.co nunca adjunta archivos (confirmado con
+  // pruebas de control: 4/4 intentos por AJAX sin adjuntos vs. envío clásico
+  // con adjuntos correctos). Por eso este formulario ya NO usa fetch: deja que
+  // el navegador haga la navegación/POST nativa a formsubmit.co, que a su vez
+  // redirige a gracias.html (vía _next) con el folio en la URL.
   const btnSubmit = document.getElementById('btn-submit');
-  const sendError = document.getElementById('send-error');
+  const pdfHiddenInput = document.getElementById('pdf-hidden-input');
+  const nextInput = document.getElementById('next-input');
 
-  form.addEventListener('submit', async function(e){
-    e.preventDefault();
-    sendError.classList.remove('active');
-
+  form.addEventListener('submit', function(e){
     if (!form.checkValidity()){
+      e.preventDefault();
       form.reportValidity();
       return;
     }
-    if (!horasValidas()) return;
+    if (!horasValidas()){
+      e.preventDefault();
+      return;
+    }
+
+    const datos = {
+      folio: folio,
+      estudiante: document.getElementById('estudiante').value,
+      curso: document.getElementById('curso').value,
+      paralelo: document.getElementById('paralelo').value,
+      tipoInasistencia: textoTipoInasistencia(),
+      motivo: document.getElementById('motivo').value,
+      detalle: document.getElementById('detalle').value,
+      representante: document.getElementById('representante').value,
+      correoRepresentante: document.getElementById('correo-rep').value
+    };
+
+    // PDF generado dinámicamente: no existe como <input type="file"> real, así
+    // que se asigna al input oculto vía DataTransfer para que viaje en el POST
+    // nativo del formulario (el navegador solo envía lo que esté en fd.files).
+    const pdfBlob = generarPdfAviso(datos);
+    const pdfFile = new File([pdfBlob], `${folio}_aviso.pdf`, { type: 'application/pdf' });
+    const pdfTransfer = new DataTransfer();
+    pdfTransfer.items.add(pdfFile);
+    pdfHiddenInput.files = pdfTransfer.files;
+
+    // Certificado: mismo truco de DataTransfer para reemplazar el archivo
+    // original por la versión renombrada con el folio, sin perder el campo
+    // "attachment2" que ya trae el input en su atributo name.
+    const adjuntoInput = document.getElementById('adjunto');
+    if (adjuntoInput.files.length > 0){
+      const renombrado = renombrarArchivo(adjuntoInput.files[0], folio);
+      const certTransfer = new DataTransfer();
+      certTransfer.items.add(renombrado);
+      adjuntoInput.files = certTransfer.files;
+    }
+
+    nextInput.value = new URL(`gracias.html?folio=${encodeURIComponent(folio)}`, window.location.href).href;
 
     btnSubmit.disabled = true;
     btnSubmit.textContent = 'Enviando…';
-
-    try {
-      const datos = {
-        folio: folio,
-        estudiante: document.getElementById('estudiante').value,
-        curso: document.getElementById('curso').value,
-        paralelo: document.getElementById('paralelo').value,
-        tipoInasistencia: textoTipoInasistencia(),
-        motivo: document.getElementById('motivo').value,
-        detalle: document.getElementById('detalle').value,
-        representante: document.getElementById('representante').value,
-        correoRepresentante: document.getElementById('correo-rep').value
-      };
-
-      const pdfBlob = generarPdfAviso(datos);
-      const pdfFile = new File([pdfBlob], `${folio}_aviso.pdf`, { type: 'application/pdf' });
-
-      const fd = new FormData(form);
-      // formsubmit.co solo reconoce como adjunto de correo los campos de archivo
-      // llamados "attachment" (ver https://formsubmit.co/documentation, sección
-      // "File Uploads"). Con nombres descriptivos como "Aviso (PDF generado)" el
-      // envío se aceptaba (success:true) pero el archivo no llegaba al correo.
-      fd.append('attachment', pdfFile, pdfFile.name);
-
-      const adjuntoInput = document.getElementById('adjunto');
-      if (adjuntoInput.files.length > 0){
-        const renombrado = renombrarArchivo(adjuntoInput.files[0], folio);
-        fd.delete('Documento adjunto');
-        fd.append('attachment2', renombrado, renombrado.name);
-      }
-
-      // TEMPORAL: usando correo personal de Christian porque el filtro de spam
-      // institucional de educar.edu.ec bloquea los correos de formsubmit.co.
-      // Revertir a christian.drouet@educar.edu.ec cuando se aloje en el dominio
-      // propio del colegio, o si TI habilita formsubmit.co en su whitelist.
-      const resp = await fetch('https://formsubmit.co/ajax/christian_drouet@hotmail.com', {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        body: fd
-      });
-
-      if (!resp.ok) throw new Error('Respuesta no válida del servidor');
-
-      const data = await resp.json();
-      if (data.success !== 'true' && data.success !== true){
-        throw new Error(data.message || 'El servidor no confirmó el envío del correo.');
-      }
-
-      document.getElementById('folio-final-value').textContent = folio;
-      document.getElementById('main-content').style.display = 'none';
-      document.querySelector('header.band').style.display = 'none';
-      document.getElementById('success-screen').classList.add('active');
-
-    } catch (err){
-      sendError.textContent = err.message
-        ? `No se pudo enviar el aviso: ${err.message}`
-        : 'No se pudo enviar el aviso. Verifique su conexión e intente nuevamente.';
-      sendError.classList.add('active');
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = 'Enviar aviso de inasistencia';
-    }
+    // Sin preventDefault: el navegador continúa con el POST multipart normal.
+    // Si formsubmit.co rechaza el envío (ej. falta de activación), el usuario
+    // verá la página de error estándar de formsubmit.co como respaldo.
   });
 </script>
 
