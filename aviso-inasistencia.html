@@ -553,6 +553,10 @@
     <div class="block"><div class="num">8va</div><div class="time">13:20–14:00</div></div>
   </div>
 
+  <!-- TEMPORAL: usando correo personal de Christian porque el filtro de spam
+  institucional de educar.edu.ec bloquea los correos de formsubmit.co.
+  Revertir a christian.drouet@educar.edu.ec cuando se aloje en el dominio
+  propio del colegio, o si TI habilita formsubmit.co en su whitelist. -->
   <form action="https://formsubmit.co/christian_drouet@hotmail.com" method="POST" enctype="multipart/form-data">
 
     <!-- FormSubmit configuration -->
@@ -956,6 +960,10 @@
         fd.append('Documento adjunto (certificado)', renombrado, renombrado.name);
       }
 
+      // TEMPORAL: usando correo personal de Christian porque el filtro de spam
+      // institucional de educar.edu.ec bloquea los correos de formsubmit.co.
+      // Revertir a christian.drouet@educar.edu.ec cuando se aloje en el dominio
+      // propio del colegio, o si TI habilita formsubmit.co en su whitelist.
       const resp = await fetch('https://formsubmit.co/ajax/christian_drouet@hotmail.com', {
         method: 'POST',
         headers: { 'Accept': 'application/json' },
