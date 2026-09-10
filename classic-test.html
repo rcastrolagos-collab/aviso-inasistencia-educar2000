@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba envio clasico formsubmit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<h1>Prueba de envio CLASICO (sin fetch, con redireccion)</h1>
+<p>Esta pagina es solo para diagnosticar si formsubmit.co adjunta archivos en el envio clasico (no-AJAX). No forma parte del formulario real.</p>
+
+<form id="test-form" action="https://formsubmit.co/christian_drouet@hotmail.com" method="POST" enctype="multipart/form-data">
+  <input type="hidden" name="_subject" value="PRUEBA DIAGNOSTICO - envio clasico con adjuntos">
+  <input type="hidden" name="_template" value="table">
+  <input type="hidden" name="_captcha" value="false">
+  <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+  <input type="hidden" name="Nota" value="Prueba de control: confirmar si el endpoint clasico (no /ajax/) adjunta archivos correctamente.">
+
+  <p>PDF generado dinamicamente (adjuntado via hidden file input + DataTransfer):</p>
+  <input type="file" id="pdf-hidden-input" name="attachment" style="display:none">
+
+  <p>Certificado (input de archivo real, visible):</p>
+  <input type="file" id="cert-input" name="attachment2" accept=".pdf,.jpg,.jpeg,.png">
+
+  <br><br>
+  <button type="button" id="btn-generar-pdf">1. Generar PDF de prueba</button>
+  <p id="pdf-status">PDF no generado aun.</p>
+  <br>
+  <button type="submit" id="btn-enviar">2. Enviar (envio CLASICO, con redireccion real)</button>
+</form>
+
+<script>
+  document.getElementById('btn-generar-pdf').addEventListener('click', function(){
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    doc.setFontSize(16);
+    doc.text('PRUEBA DIAGNOSTICO - PDF generado por jsPDF', 40, 60);
+    doc.text('Fecha: ' + new Date().toISOString(), 40, 90);
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], 'PRUEBA-DIAG_aviso.pdf', { type: 'application/pdf' });
+
+    const dt = new DataTransfer();
+    dt.items.add(pdfFile);
+    document.getElementById('pdf-hidden-input').files = dt.files;
+
+    document.getElementById('pdf-status').textContent =
+      'PDF generado y asignado: ' + pdfFile.name + ' (' + pdfFile.size + ' bytes)';
+  });
+
+  // Nota: el submit NO tiene preventDefault ni fetch. El navegador hara
+  // la navegacion/redireccion nativa a formsubmit.co, exactamente como
+  // un <form> clasico sin JavaScript de por medio.
+</script>
+</body>
+</html>
