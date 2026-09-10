@@ -951,13 +951,17 @@
       const pdfFile = new File([pdfBlob], `${folio}_aviso.pdf`, { type: 'application/pdf' });
 
       const fd = new FormData(form);
-      fd.append('Aviso (PDF generado)', pdfFile, pdfFile.name);
+      // formsubmit.co solo reconoce como adjunto de correo los campos de archivo
+      // llamados "attachment" (ver https://formsubmit.co/documentation, sección
+      // "File Uploads"). Con nombres descriptivos como "Aviso (PDF generado)" el
+      // envío se aceptaba (success:true) pero el archivo no llegaba al correo.
+      fd.append('attachment', pdfFile, pdfFile.name);
 
       const adjuntoInput = document.getElementById('adjunto');
       if (adjuntoInput.files.length > 0){
         const renombrado = renombrarArchivo(adjuntoInput.files[0], folio);
         fd.delete('Documento adjunto');
-        fd.append('Documento adjunto (certificado)', renombrado, renombrado.name);
+        fd.append('attachment2', renombrado, renombrado.name);
       }
 
       // TEMPORAL: usando correo personal de Christian porque el filtro de spam
